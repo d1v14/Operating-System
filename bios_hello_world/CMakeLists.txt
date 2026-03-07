@@ -1,5 +1,5 @@
 SET(INPUT ${CMAKE_CURRENT_SOURCE_DIR}/hello_world.asm)
-SET(OUTPUT ${BINARY_DIR}/boot_hello_world.bin)
+SET(OUTPUT ${FLAT_BINARY_DIR}/boot_hello_world.bin)
 
 message(${INPUT})
 message(${OUTPUT})
