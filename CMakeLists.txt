@@ -18,3 +18,4 @@ file(MAKE_DIRECTORY ${LIBRARY_DIR})
 
 
 add_subdirectory(bios_hello_world)
+add_subdirectory(a20_line_unlocking)

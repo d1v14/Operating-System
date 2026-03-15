@@ -5,7 +5,7 @@ start:
     xor ax, ax ; Обнуляем аккумулятор
     mov ds, ax ; Обнуляем датасегмент для правильной адресации
     mov ss, ax ; Обнуляем стек сегмент
-    mov sp, 0x7c00 ; Устанавливаем сегмент на адрес по которому нас загрузили ( будем расти вверз)
+    mov sp, 0x7c00 ; Устанавливаем сегмент на адрес по которому нас загрузили ( будем расти вниз)
     sti ; Включаем прерывания обратно
 
     mov si, introduction_message
@@ -15,11 +15,18 @@ start:
     call print_message
 
     call keyboard_wait_for_input
+    call prepare_write_to_data_port
+    call keyboard_wait_for_input
+
+    call write_a20_enable_command
+    call keyboard_wait_for_input
+
+    call check_a20_enabled
 
 ; ---------------------------------------Функция ожидания когда с порта клаватуры вернется ответ о том, что контроллер клавиатуры освободился--------------------------
 keyboard_wait_for_input:
     in al, 0x64
-    test al, 0x10
+    test al, 0x2
     jnz print_keyboard_busy
     ret
 
@@ -31,12 +38,47 @@ print_keyboard_busy:
 ; -------------------------------------------------------------------------------------------------------------------------------
 
 
-keyboard_wait_for_output:
-    in al, 0x64
-    test al, 0b1
-    jz keyboard_wait_for_output
+; ---------------------------------------Функция, которая записывает в управляющий порт контроллера клавиатуры команду о том, что мы собираемся записать данные в порт данныз контроллера клавитуры--------------------------
+prepare_write_to_data_port:
+    mov al, 0xD1
+    out 0x64, al
     ret
 
+; -----------------------------------------------------------------------------------------------------------------афвыф--------------
+
+; ---------------------------------------Функция, которая записывает в порт данныз контроллера клавиатуры команду о том, что мы собираемся включить линию а20-------------------------
+write_a20_enable_command:
+    mov al, 0xDF
+    out 0x60, al
+    ret
+; -------------------------------------------------------------------------------------------------------------------------------
+
+; ---------------------------------------Функция, которая проверят, включилась ли линия а20, записывая в 1 мегабайт значение 0xAF -------------------------
+check_a20_enabled:
+    mov ax, 0xFFFF
+    mov es, ax
+
+    mov ax, [0x500]
+    push ax
+
+    not ax
+    mov [es:0x510], ax
+
+    cmp word [0x500], ax
+
+    pop ax
+    mov [0x500], ax
+
+    je a20_enabling_fail
+    mov si, a20_enabled_message
+    call print_message
+    jmp end
+
+a20_enabling_fail:
+    mov si, a20_enabling_failure_message
+    call print_message
+    jmp end
+; -------------------------------------------------------------------------------------------------------------------------------
 
 
 ; ---------------------------------------Функция печати любого сообщения, которое передали нам в si--------------------------
@@ -44,25 +86,33 @@ print_message:
     mov ah, 0x0e ; Уставнавливаем в регистр значение для прерывания по которому оно поймет, что мы будем выводить символы
 
 print_message_loop_start: ; Метка внутри функции в которую мы будем возвращаться при печати каждого символа
-    loadsb
+    lodsb
     test al, al
-    jz print_message_endоеув
+    jz print_message_end
     int 0x10
     jmp print_message_loop_start
 
 print_message_end:
     ret
-
 ; -------------------------------------------------------------------------------------------------------------------------------
 
+end:
+    jmp $
+
 message_keyboard_busy:
-    db 'Keyboard is busy', 0
+    db 'Keyboard is busy', 13, 10, 0
 
 introduction_message:
-    db 'Welcome to d1v14 bootloader!!!', 0
+    db 'Welcome to d1v14 bootloader!!!', 13, 10, 0
 
 a20_enabling_message:
-    db 'Starting enabling A20 line....', 0
+    db 'Starting enabling A20 line....', 13, 10, 0
+
+a20_enabled_message:
+    db 'A20 line enabled!!!', 13, 10, 0
+
+a20_enabling_failure_message:
+    db 'A20 line enabling failure:(', 13, 10, 0
 
 times 510 - ($ - $$) db 0
 dw 0xaa55
